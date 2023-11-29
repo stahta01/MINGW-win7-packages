@@ -1,0 +1,62 @@
+# Maintainer: Saul Ibarra Corretge <saghul@gmail.com>
+# Contributor: Alexey Pavlov <alexpux@gmail.com>
+# Contributor: Mehdi Chinoune <mehdi.chinoune@hotmail.com>
+
+_realname=sip
+pkgbase=mingw-w64-${_realname}
+pkgname=("${MINGW_PACKAGE_PREFIX}-${_realname}")
+conflicts=("${MINGW_PACKAGE_PREFIX}-sip4")
+replaces=("${MINGW_PACKAGE_PREFIX}-sip5")
+pkgver=6.1.1
+pkgrel=1
+pkgdesc="A tool that makes it easy to create Python bindings for C and C++ libraries (mingw-w64)"
+arch=('any')
+mingw_arch=('mingw32' 'mingw64' 'ucrt64' 'clang64' 'clang32')
+license=('custom:"sip"')
+url="https://riverbankcomputing.com/software/sip"
+depends=("${MINGW_PACKAGE_PREFIX}-python-setuptools"
+         "${MINGW_PACKAGE_PREFIX}-python-toml"
+         "${MINGW_PACKAGE_PREFIX}-python-packaging")
+source=(https://pypi.python.org/packages/source/s/sip/sip-${pkgver}.tar.gz
+        001-mingw-python.patch
+        002-wrappers.patch)
+sha256sums=('52d25af2fcd764c4e15cc9cd1350bdb0e63f52dfa2aa3c5e7679af7fde9f7e20'
+            '42cd9c032ab09211609dc67af0f11cd9b78dc90ba06f186ad8af209d64ac22a3'
+            '2e46495e5df4eed5384a01db93e75f82e37549a4776ca03d07dfef7801d01d78')
+install=${_realname}-${MSYSTEM}.install
+
+prepare() {
+  cd "${srcdir}"/${_realname}-${pkgver}
+
+  # Apply patches
+  patch -p1 -i "${srcdir}"/001-mingw-python.patch
+  patch -p1 -i "${srcdir}"/002-wrappers.patch
+
+  cd "${srcdir}"
+  rm -rf python-build-${MSYSTEM} | true
+  cp -r "${_realname}-${pkgver}" "python-build-${MSYSTEM}"
+}
+
+build() {
+  cd python-build-${MSYSTEM}
+
+  MSYS2_ARG_CONV_EXCL="--prefix=;--install-scripts=;--install-platlib=" \
+  ${MINGW_PREFIX}/bin/python setup.py build
+}
+
+package() {
+  cd "${srcdir}"/python-build-${MSYSTEM}
+  MSYS2_ARG_CONV_EXCL="--prefix=;--install-scripts=;--install-platlib=" \
+  ${MINGW_PREFIX}/bin/python setup.py install --prefix=${MINGW_PREFIX} \
+    --root="${pkgdir}" --optimize=1 --skip-build
+
+  local PREFIX_WIN=$(cygpath -wm ${MINGW_PREFIX})
+  # fix python command in files
+  for _ff in ${pkgdir}${MINGW_PREFIX}/bin/*.py; do
+    sed -e "s|${PREFIX_WIN}|${MINGW_PREFIX}|g" -i ${_ff}
+  done
+
+  install -Dm644 LICENSE "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE"
+  install -Dm644 LICENSE-GPL2 "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE-GPL2"
+  install -Dm644 LICENSE-GPL3 "${pkgdir}${MINGW_PREFIX}/share/licenses/${_realname}/LICENSE-GPL3"
+}
